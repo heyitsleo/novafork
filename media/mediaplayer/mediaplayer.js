@@ -33,6 +33,21 @@ async function getMovieEmbedUrl(mediaId, provider, apiKey) {
             return `https://vidsrc.cc/v3/embed/movie/${mediaId}?autoPlay=true`;
         case 'vidsrc2':
             return `https://vidsrc2.to/embed/movie/${mediaId}`;
+            case 'vidlink2':
+            try {
+                const response = await fetch(`https://cinescrape.com/vidlink/movie/${mediaId}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                if (!data.stream || !data.stream.playlist) throw new Error('No playlist URL found');
+
+                const hlsUrl = data.stream.playlist;
+                return hlsUrl; // Return the HLS URL directly
+            } catch (error) {
+                console.error('Error fetching video from vidlink2:', error);
+                throw error;
+            }
+            
         case 'vidsrcxyz':
             return `https://vidsrc.xyz/embed/movie/${mediaId}`;
         case 'embedsoap':
@@ -76,7 +91,8 @@ async function getMovieEmbedUrl(mediaId, provider, apiKey) {
             return `https://vidsrc.icu/embed/movie/${mediaId}`;
         case 'cinescrape':
             try {
-                showLoadingScreen();
+                const randomDelay = Math.floor(Math.random() * (5000 - 2000 + 1)) + 2000;
+                await new Promise(resolve => setTimeout(resolve, randomDelay)); 
                 const response = await fetch(`https://cinescrape.com/movie/${mediaId}`);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
@@ -158,6 +174,21 @@ async function getTvEmbedUrl(mediaId, seasonId, episodeId, provider, apiKey) {
     const iconColor = '#ffffff';
 
     switch (provider) {
+        case 'vidlink2':
+            try {
+                const response = await fetch(`https://cinescrape.com/vidlink/tvshow/${mediaId}/${seasonId}/${episodeId}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                if (!data.stream || !data.stream.playlist) throw new Error('No playlist URL found');
+
+                const hlsUrl = data.stream.playlist;
+                return hlsUrl; // Return the HLS URL directly
+            } catch (error) {
+                console.error('Error fetching video from vidlink2:', error);
+                throw error;
+            }
+
         case 'vidsrc':
             return `https://vidsrc.cc/v3/embed/tv/${mediaId}/${seasonId}/${episodeId}?autoPlay=true&autoNext=true`;
         case 'vidsrcpro':
@@ -209,7 +240,8 @@ async function getTvEmbedUrl(mediaId, seasonId, episodeId, provider, apiKey) {
             return `https://embed.su/embed/tv/${mediaId}/${seasonId}/${episodeId}`;
         case 'cinescrape':
             try {
-                showLoadingScreen();
+                const randomDelay = Math.floor(Math.random() * (5000 - 2000 + 1)) + 2000;
+                await new Promise(resolve => setTimeout(resolve, randomDelay));  
                 const response = await fetch(`https://cinescrape.com/tvshow/${mediaId}/${seasonId}/${episodeId}`);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
@@ -383,37 +415,6 @@ async function displaySelectedMedia(media, mediaType) {
                 localStorage.setItem('vidLinkProgress', JSON.stringify(mediaData));
             }
         });
-
-        let devToolsBlocked = true; // Toggle this to true or false
-
-        function preventDevTools() {
-            if (devToolsBlocked) {
-                const threshold = 160;
-
-                function devToolsOpen() {
-                    return window.outerHeight - window.innerHeight > threshold || window.outerWidth - window.innerWidth > threshold;
-                }
-
-                setInterval(() => {
-                    if (devToolsOpen()) {
-                        window.location.reload();
-                    }
-                }, 1000);
-
-                document.addEventListener("keydown", function (event) {
-                    if (event.key === "F12" || (event.ctrlKey && event.shiftKey && event.key === "I")) {
-                        event.preventDefault();
-                        window.location.reload();
-                    }
-                });
-
-                document.addEventListener("contextmenu", function (event) {
-                    event.preventDefault();
-                });
-            }
-        }
-        preventDevTools();
-
         async function updateVideo() {
             try {
                 const provider = $providerSelect.length ? $providerSelect.val() : selectedProvider;
@@ -442,6 +443,34 @@ async function displaySelectedMedia(media, mediaType) {
                     $videoPlayer.html(videoHtml).removeClass('hidden');
                     $movieInfo.children().not($videoPlayer).addClass('hidden');
                     $closePlayerButton.removeClass('hidden');
+                } else if (provider === 'vidlink2') {
+                    // Render basic HLS video player using hls.js
+                    playerHtml = `
+                        <video id="hlsVideoPlayer" controls style="width: 100%; height: auto;" class="video-element">
+
+                        </video>
+                    `;
+                    $videoPlayer.html(playerHtml).removeClass('hidden');
+                    $movieInfo.children().not($videoPlayer).addClass('hidden');
+                    $closePlayerButton.removeClass('hidden');
+        
+                    // Initialize hls.js
+                    if (Hls.isSupported()) {
+                        const video = document.getElementById('hlsVideoPlayer');
+                        const hls = new Hls();
+                        hls.loadSource(endpoint);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                            video.play();
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        // Native HLS support (e.g., Safari)
+                        const video = document.getElementById('hlsVideoPlayer');
+                        video.src = endpoint;
+                        video.addEventListener('loadedmetadata', function () {
+                            video.play();
+                        });
+                    } 
                 } else {
                     const sandboxAttribute = provider === 'vidlink' ? 'sandbox="allow-same-origin allow-scripts allow-forms"' : '';
                     const referrerPolicy = provider === 'vidbinge' ? 'referrerpolicy="origin-when-cross-origin"' : '';
