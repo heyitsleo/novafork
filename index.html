@@ -14,20 +14,23 @@
     <meta property="og:url" content="https://tv.starnode.host">
     <meta name="theme-color" content="#A17FC0">
     <meta name="referrer" content="origin">
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
     <!-- Versioning added to normalize.css -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css?v=1.1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css?v=1.7">
 
     <!-- Include Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Versioning added to Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=1.1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=1.7">
 
     <!-- Consolidated in one Css file with versioning -->
-    <link rel="stylesheet" href="themes/themes.css?v=1.4.50">
+    <link rel="stylesheet" href="themes/themes.css?v=1.4.56">
 
     <!-- jQuery with versioning -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js?v=1.1"
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js?v=1.7"
             integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
@@ -263,15 +266,15 @@ exclusive and CANNOT be shared without asking the owner.</p>
 
 
 <!-- Scripts with versioning added -->
-<script src="media/mediaplayer/mediaplayer.js?v=1.2.4.53"></script>
-<script src="search/searchResults.js?v=1.1.3"></script>
-<script type="module" src="index.js?v=1.1.6"></script>
-<script src="media/mediahider/mediahider.js?v=1.3"></script>
-<script src="media/mediashare/shareModal.js?v=1.2"></script>
-<script src="media/donatepopup/donatepopup.js?v=1.1"></script>
-<script src="media/donatepopup/bitcoinPopup.js?v=1.1"></script>
-<script src="media/mediaTemplate.html?v=1.20"></script>
-<script src="advancedfilter/advanced-filters.js?v=1.5"></script>
+<script src="media/mediaplayer/mediaplayer.js?v=1.2.4.59"></script>
+<script src="search/searchResults.js?v=1.1.9"></script>
+<script type="module" src="index.js?v=1.2.2"></script>
+<script src="media/mediahider/mediahider.js?v=1.9"></script>
+<script src="media/mediashare/shareModal.js?v=1.8"></script>
+<script src="media/donatepopup/donatepopup.js?v=1.7"></script>
+<script src="media/donatepopup/bitcoinPopup.js?v=1.8"></script>
+<script src="media/mediaTemplate.html?v=1.26"></script>
+<script src="advancedfilter/advanced-filters.js?v=1.11"></script>
 <script>
     document.getElementById('logo').addEventListener('click', function () {
         window.location.href = window.location.origin;
@@ -289,6 +292,147 @@ exclusive and CANNOT be shared without asking the owner.</p>
             card.style.setProperty('--mouse-y', `${y}px`);
         });
     });
+    
+    (function() {
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    let devToolsOpened = false;
+    let consecutiveDetections = 0;
+    const MAX_CONSECUTIVE_DETECTIONS = 3;
+    const DEBOUNCE_DELAY = 250;
+
+    // Redirect Function with confirmation
+    const redirectToGoogle = () => {
+        if (confirm("This action is not allowed. Redirect to Google?")) {
+            window.location.replace("https://www.google.com");
+        } else {
+            devToolsOpened = false;
+            consecutiveDetections = 0;
+        }
+    };
+
+    // Keyboard Shortcuts Detection (Desktop only)
+    if (!isMobile) {
+        document.addEventListener('keydown', (event) => {
+            if (
+                (event.key === 'F12') || 
+                (event.ctrlKey && event.shiftKey && event.key === 'I') || 
+                (event.ctrlKey && event.shiftKey && event.key === 'C') || 
+                (event.ctrlKey && event.shiftKey && event.key === 'J') || 
+                (event.ctrlKey && event.key === 'U')
+            ) {
+                event.preventDefault();
+                handleDetection();
+            }
+        });
+    }
+
+    // DevTools Detection
+    const detectDevTools = () => {
+        const threshold = isMobile ? 50 : 160;
+        const widthDiff = window.outerWidth - window.innerWidth;
+        const heightDiff = window.outerHeight - window.innerHeight;
+
+        if (isMobile) {
+            const isLandscape = window.innerWidth > window.innerHeight;
+            if (isLandscape && (widthDiff > threshold || heightDiff > threshold)) {
+                handleDetection();
+            }
+        } else if (widthDiff > threshold || heightDiff > threshold) {
+            handleDetection();
+        }
+    };
+
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(detectDevTools, DEBOUNCE_DELAY);
+    });
+    detectDevTools(); // Initial check on load
+
+    // Debugger Detection
+    const detectDebugger = () => {
+        if (!isMobile) {
+            setInterval(() => {
+                const start = Date.now();
+                debugger;
+                if (Date.now() - start > 100) {
+                    handleDetection();
+                }
+            }, 1000);
+        }
+    };
+    detectDebugger();
+
+    // Console Detection
+    const detectConsole = () => {
+        if (!isMobile) {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
+            Object.defineProperty(iframe.contentWindow, 'console', {
+                get: () => {
+                    handleDetection();
+                    return {};
+                }
+            });
+
+            setInterval(() => {
+                try {
+                    console.profile();
+                    console.profileEnd();
+                    if (console.clear) console.clear();
+                } catch (e) {
+                    handleDetection();
+                }
+            }, 1000);
+        }
+    };
+    detectConsole();
+
+    // Element.prototype.remove detection
+    const originalRemove = Element.prototype.remove;
+    Element.prototype.remove = function() {
+        handleDetection();
+        return originalRemove.apply(this, arguments);
+    };
+
+    // Performance API detection
+    if (window.performance && performance.getEntriesByType) {
+        setInterval(() => {
+            const entries = performance.getEntriesByType("resource");
+            if (entries.some(entry => entry.name.includes("devtools"))) {
+                handleDetection();
+            }
+        }, 1000);
+    }
+
+    // Handle detection with consecutive checks
+    function handleDetection() {
+        consecutiveDetections++;
+        if (consecutiveDetections >= MAX_CONSECUTIVE_DETECTIONS) {
+            if (!devToolsOpened) {
+                devToolsOpened = true;
+                redirectToGoogle();
+            }
+        } else {
+            setTimeout(() => {
+                consecutiveDetections = 0;
+            }, 5000);
+        }
+    }
+
+    // Disable right-click
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Disable selection
+    document.addEventListener('selectstart', (e) => e.preventDefault());
+
+    // Disable drag and drop
+    document.addEventListener('dragstart', (e) => e.preventDefault());
+})();
+
+
 </script>
 </body>
 

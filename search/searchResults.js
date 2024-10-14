@@ -41,8 +41,11 @@ $(document).ready(async function() {
         $('#searchSuggestions').html('<div class="spinner"></div>').removeClass('hidden');
     };
 
-    const highlightText = (text, query) =>
-        query ? text.replace(new RegExp(`(${query})`, 'gi'), '<span class="highlight">$1</span>') : text;
+    const highlightText = (text, query) => {
+        const words = query.split(/\s+/).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const regex = new RegExp(`(${words.join('|')})`, 'gi');
+        return text.replace(regex, '<span class="highlight">$1</span>');
+    };
 
     const displaySearchSuggestions = (results, query) => {
         const $searchSuggestions = $('#searchSuggestions');
@@ -62,7 +65,7 @@ $(document).ready(async function() {
 
             return `
                 <div class="suggestion-item" data-id="${media.id}" data-type="${media.media_type}">
-                    <img src="https://image.tmdb.org/t/p/w185${media.poster_path}" alt="${mediaTitle}" class="suggestion-poster">
+                    <img src="https://image.tmdb.org/t/p/w92${media.poster_path}" alt="${mediaTitle}" class="suggestion-poster">
                     <div class="suggestion-content">
                         <h4 class="suggestion-title">${highlightedTitle}</h4>
                         <div class="suggestion-details">
@@ -197,17 +200,20 @@ $(document).ready(async function() {
     };
 
     const handleSearchInput = debounce(async () => {
-        const query = $('#searchInput').val().trim().toLowerCase();
-        if (!query) {
-            $('#searchSuggestions').empty();
+        const query = $('#searchInput').val().trim();
+        if (query.length < 2) {
+            $('#searchSuggestions').empty().addClass('hidden');
             return;
         }
 
         showLoading();
 
         try {
-            const { results } = await $.getJSON(`${API_BASE_URL}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(query)}`);
-            displaySearchSuggestions(results, query);
+            const { results } = await $.getJSON(`${API_BASE_URL}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(query)}&include_adult=false`);
+            const filteredResults = results.filter(media => 
+                media.media_type === 'movie' || media.media_type === 'tv'
+            ).slice(0, 10);
+            displaySearchSuggestions(filteredResults, query);
         } catch (error) {
             handleError('An error occurred while fetching search results:', error);
         }
@@ -225,7 +231,7 @@ $(document).ready(async function() {
 
     const searchMediaByTitle = async (title) => {
         try {
-            const { results } = await $.getJSON(`${API_BASE_URL}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
+            const { results } = await $.getJSON(`${API_BASE_URL}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(title)}&include_adult=false`);
             return results[0];
         } catch (error) {
             handleError('An error occurred while searching media by title:', error);
