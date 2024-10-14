@@ -44,16 +44,17 @@
           </label>
           <select id="providerSelect"
                   class="custom-select sm-select w-full bg-gray-800 text-white rounded-lg border border-gray-700 p-1 sm:p-2 focus:border-purple-400 focus:ring-purple-400 transition duration-200 ease-in-out">
+            <option value="trailer">Trailer</option>
             <optgroup label="Best Providers (No Ads)">
-              <option value="vidlink">VidLink - Main</option>
-              <option value="vidlink2">VidLink - BETA</option>
+              <option value="vidlink">VidLink - Main Source</option>
+              <option value="filmxy">Filmxy - Multi Lang</option>
               <option value="cinescrape">Cinescrape - 4K (DebateMyRoomba)</option>
-              <option value="vidbinge">VidBinge - main Provider 2[4k]</option>
-              <option value="vidsrcnl">VidSrc NL - main provider 3</option>
-              <option value="vidsrc">VidSrc - Best Provider 1</option>
+              <option value="vidbinge">VidBinge - 4k </option>
+              <option value="vidsrcnl">VidSrc NL - Fallback</option>
+              <option value="vidsrc">VidSrc - Fallback 2</option>
             </optgroup>
             <optgroup label="Alternative Providers (Ads May Appear)">
-              <option value="embedsu">embedsu - ads</option>
+              <option value="embedsu">Embedsu - ads</option>
               <option value="vidsrcicu">VidSrc ICU - Ads</option>
               <option value="vidsrcpro">VidSrcPro - Ads</option>
               <option value="autoembed">AutoEmbed - Ads</option>
@@ -74,9 +75,17 @@
               <option value="anime">Anime - Sub Only</option>
               <option value="2animesub">2Anime - Sub Only</option>
             </optgroup>
-            <option value="trailer">Trailer</option>
           </select>
         </div>
+
+        <!-- Orientation Lock Toggle -->
+      <div class="flex items-center justify-between">
+        <label for="orientationLockToggle" class="block text-xs sm:text-sm font-semibold text-gray-200">
+          <i class="fas fa-sync-alt mr-2"></i>Orientation Lock:
+        </label>
+        <input type="checkbox" id="orientationLockToggle" class="toggle-checkbox">
+      </div>
+
 
         <p class="text-xs note">Note: The "Best Providers (No Ads)" section contains providers with no ads. Other providers may include ads.</p>
 

@@ -23,7 +23,44 @@ async function fetchJson(url) {
 }
 
 
-async function getMovieEmbedUrl(mediaId, provider, apiKey) {
+function promptUserForLanguage(languages) {
+    return new Promise((resolve, reject) => {
+        // Create modal elements
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'modal-overlay fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content bg-gray-900 rounded-lg p-6';
+
+        const modalTitle = document.createElement('h2');
+        modalTitle.className = 'text-xl font-bold mb-4 text-white';
+        modalTitle.innerText = 'Select a Language';
+
+        const languageList = document.createElement('ul');
+        languageList.className = 'language-list';
+
+        languages.forEach(language => {
+            const listItem = document.createElement('li');
+            listItem.className = 'language-item cursor-pointer hover:bg-gray-700 p-2 rounded text-white';
+            listItem.innerText = language;
+            listItem.addEventListener('click', () => {
+                // Remove modal
+                document.body.removeChild(modalOverlay);
+                resolve(language);
+            });
+            languageList.appendChild(listItem);
+        });
+
+        // Append elements
+        modalContent.appendChild(modalTitle);
+        modalContent.appendChild(languageList);
+        modalOverlay.appendChild(modalContent);
+        document.body.appendChild(modalOverlay);
+    });
+}
+
+
+async function getMovieEmbedUrl(mediaId, provider, apiKey, language=null) {
     const primaryColor = '#FFFFFF';
     const secondaryColor = '#FFFFFF';
     const iconColor = '#FFFFFF';
@@ -33,20 +70,25 @@ async function getMovieEmbedUrl(mediaId, provider, apiKey) {
             return `https://vidsrc.cc/v3/embed/movie/${mediaId}?autoPlay=true`;
         case 'vidsrc2':
             return `https://vidsrc2.to/embed/movie/${mediaId}`;
-            case 'vidlink2':
+            case 'filmxy':
             try {
-                const response = await fetch(`https://cinescrape.com/vidlink/movie/${mediaId}`);
+                if (!language) {
+                    throw new Error('Language is required for filmxy provider');
+                }
+
+                const languageCode = language.toLowerCase();
+                const url = `https://cinescrape.com/global/${languageCode}/${mediaId}`;
+                const response = await fetch(url);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
-
-                if (!data.stream || !data.stream.playlist) throw new Error('No playlist URL found');
-
-                const hlsUrl = data.stream.playlist;
-                return hlsUrl; // Return the HLS URL directly
+                const m3u8Link = data.streamData.data.link;
+                if (!m3u8Link) throw new Error('No m3u8 link found');
+                return m3u8Link;
             } catch (error) {
-                console.error('Error fetching video from vidlink2:', error);
+                console.error('Error fetching video from filmxy:', error);
                 throw error;
             }
+
             
         case 'vidsrcxyz':
             return `https://vidsrc.xyz/embed/movie/${mediaId}`;
@@ -124,6 +166,15 @@ async function getMovieEmbedUrl(mediaId, provider, apiKey) {
                 console.error('Error fetching video from Cinescrape:', error);
                 throw error;
             }
+            case 'trailer':
+            try {
+                const trailerUrl = await fetchTrailer(mediaId, 'movie', apiKey);
+                if (!trailerUrl) throw new Error('Trailer not found');
+                return trailerUrl;
+            } catch (error) {
+                console.error('Error fetching trailer for movie:', error);
+                throw error;
+            }
 
         default:
             throw new Error('Provider not recognized.');
@@ -160,7 +211,7 @@ function showLoadingScreen() {
             const messageIndex = Math.min(Math.floor(currentProgress / 20), loadingMessages.length - 1);
             loadingMessage.innerHTML = `${loadingMessages[messageIndex].icon} ${loadingMessages[messageIndex].message}`;
         }
-    }, 1100);
+    }, 2000);
 }
 // Function to hide loading screen
 function hideLoadingScreen() {
@@ -174,21 +225,6 @@ async function getTvEmbedUrl(mediaId, seasonId, episodeId, provider, apiKey) {
     const iconColor = '#ffffff';
 
     switch (provider) {
-        case 'vidlink2':
-            try {
-                const response = await fetch(`https://cinescrape.com/vidlink/tvshow/${mediaId}/${seasonId}/${episodeId}`);
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-
-                if (!data.stream || !data.stream.playlist) throw new Error('No playlist URL found');
-
-                const hlsUrl = data.stream.playlist;
-                return hlsUrl; // Return the HLS URL directly
-            } catch (error) {
-                console.error('Error fetching video from vidlink2:', error);
-                throw error;
-            }
-
         case 'vidsrc':
             return `https://vidsrc.cc/v3/embed/tv/${mediaId}/${seasonId}/${episodeId}?autoPlay=true&autoNext=true`;
         case 'vidsrcpro':
@@ -277,15 +313,103 @@ async function getTvEmbedUrl(mediaId, seasonId, episodeId, provider, apiKey) {
                 console.error('Error fetching video from Cinescrape:', error);
                 throw error;
             }
-
-        default:
-            throw new Error('Provider not recognized.');
+            case 'trailer':
+                try {
+                    const trailerUrl = await fetchTrailer(mediaId, 'tv', apiKey);
+                    if (!trailerUrl) throw new Error('Trailer not found');
+                    return trailerUrl;
+                } catch (error) {
+                    console.error('Error fetching trailer for TV show:', error);
+                    throw error;
+                }
+    
+            default:
+                throw new Error('Provider not recognized.');
+        }
     }
 
+
+// Define the functions first
+function enableOrientationLock() {
+    const element = document.documentElement; // Lock the orientation for the whole page
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(err => {
+            console.warn('Orientation lock failed:', err);
+        });
+    } else {
+        console.warn('Orientation lock not supported on this device.');
+    }
+    // Optionally, make element fullscreen
+    if (element.requestFullscreen) {
+        element.requestFullscreen().catch(err => {
+            console.warn('Fullscreen request failed:', err);
+        });
+    }
 }
 
 
+function disableOrientationLock() {
+    if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock().catch(err => {
+            console.warn('Orientation unlock failed:', err);
+        });
+    }
+    // Exit fullscreen mode
+    if (document.exitFullscreen) {
+        document.exitFullscreen().catch(err => {
+            console.warn('Exiting fullscreen failed:', err);
+        });
+    }
+}
 
+// Now add the DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', () => {
+    const orientationLockToggle = document.getElementById('orientationLockToggle');
+    const orientationLockEnabled = JSON.parse(localStorage.getItem('orientationLock')) || false;
+    orientationLockToggle.checked = orientationLockEnabled;
+
+    // Update lock orientation based on stored preference
+    if (orientationLockEnabled) {
+        enableOrientationLock();
+    }
+
+    // Event listener for the toggle switch
+    orientationLockToggle.addEventListener('change', (event) => {
+        const isEnabled = event.target.checked;
+        localStorage.setItem('orientationLock', isEnabled);
+        
+        if (isEnabled) {
+            enableOrientationLock();
+        } else {
+            disableOrientationLock();
+        }
+    });
+});
+
+
+
+
+function attemptFullscreenAndLockOrientation(element) {
+    const orientationLockEnabled = JSON.parse(localStorage.getItem('orientationLock')) || false;
+    if (!element || !orientationLockEnabled) return;
+
+    // Request Fullscreen
+    if (element.requestFullscreen) {
+        element.requestFullscreen().catch(err => {
+            console.warn('Fullscreen request failed:', err);
+        });
+    }
+
+    // Lock Screen Orientation to Landscape
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(err => {
+            console.warn('Orientation lock failed:', err);
+        });
+    }
+}
+
+
+    
 async function fetchMediaData(mediaId, mediaType, apiKey) {
     return fetchJson(`https://api.themoviedb.org/3/${mediaType}/${mediaId}?api_key=${apiKey}`);
 }
@@ -299,6 +423,7 @@ async function fetchTrailer(mediaId, mediaType, apiKey) {
     const trailer = data.results.find(video => video.type === 'Trailer' && video.site === 'YouTube');
     return trailer ? `https://www.youtube.com/embed/${trailer.key}` : null;
 }
+
 
 async function displaySelectedMedia(media, mediaType) {
     const $selectedMovie = $('#selectedMovie');
@@ -417,10 +542,27 @@ async function displaySelectedMedia(media, mediaType) {
         });
         async function updateVideo() {
             try {
+                // Determine the selected provider and ensure API key is present
                 const provider = $providerSelect.length ? $providerSelect.val() : selectedProvider;
+                const apiKey = await getApiKey();
+                if (!apiKey) return console.error('API key is not available.');
+                
                 let endpoint;
-
-                if (mediaType === 'tv') {
+        
+                // Check if the selected provider is for a trailer
+                if (provider === 'trailer') {
+                    // Trailer handling for movies and TV shows
+                    if (mediaType === 'movie') {
+                        endpoint = await getMovieEmbedUrl(media.id, provider, apiKey);
+                    } else if (mediaType === 'tv') {
+                        if (!selectedSeason || !selectedEpisode) {
+                            alert('Please select a season and an episode.');
+                            return;
+                        }
+                        endpoint = await getTvEmbedUrl(media.id, selectedSeason, selectedEpisode, provider, apiKey);
+                    }
+                } else if (mediaType === 'tv') {
+                    // Non-trailer TV show handling
                     if (!selectedSeason || !selectedEpisode) {
                         alert('Please select a season and an episode.');
                         return;
@@ -428,94 +570,139 @@ async function displaySelectedMedia(media, mediaType) {
                     if (provider === 'cinescrape') showLoadingScreen();
                     endpoint = await getTvEmbedUrl(media.id, selectedSeason, selectedEpisode, provider, apiKey);
                 } else {
-                    if (provider === 'cinescrape') showLoadingScreen();
-                    endpoint = await getMovieEmbedUrl(media.id, provider, apiKey);
+                    // Non-trailer movie handling
+                    if (provider === 'filmxy') {
+                        // Prompt for language selection with filmxy provider
+                        const languages = ['Hindi', 'English', 'Bengali', 'Tamil', 'Telugu'];
+                        const selectedLanguage = await promptUserForLanguage(languages);
+                        if (!selectedLanguage) {
+                            alert('No language selected.');
+                            return;
+                        }
+                        showLoadingScreen();
+                        endpoint = await getMovieEmbedUrl(media.id, provider, apiKey, selectedLanguage);
+                    } else if (provider === 'cinescrape') {
+                        showLoadingScreen();
+                        endpoint = await getMovieEmbedUrl(media.id, provider, apiKey);
+                    } else {
+                        endpoint = await getMovieEmbedUrl(media.id, provider, apiKey);
+                    }
                 }
-
-                let playerHtml;
-                if (provider === 'cinescrape') {
+        
+                // Display video based on provider
+                if (provider === 'trailer') {
+                    // Trailer display in an iframe
+                    const iframeHtml = `
+                        <iframe src="${endpoint}" id="videoIframe" class="video-iframe" allowfullscreen loading="lazy" style="width: 100%; height: 600px;"></iframe>
+                    `;
+                    $videoPlayer.html(iframeHtml).removeClass('hidden');
+                    $movieInfo.children().not($videoPlayer).addClass('hidden');
+                    $closePlayerButton.removeClass('hidden');
+        
+                    // Attempt to enter fullscreen and lock orientation
+                    attemptFullscreenAndLockOrientation(document.getElementById('videoIframe'));
+                } else if (provider === 'cinescrape') {
+                    // Cinescrape specific video setup
                     const videoHtml = `
-                <video controls autoplay style="height: 1000px; width: 100%;" class="video-element">
-                    <source src="${endpoint}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-            `;
+                        <video id="mp4VideoPlayer" loading="lazy" preload="metadata" crossorigin="anonymous" controls style="height: 1000px; width: 100%;" class="video-element">
+                            <source data-src="${endpoint}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    `;
                     $videoPlayer.html(videoHtml).removeClass('hidden');
                     $movieInfo.children().not($videoPlayer).addClass('hidden');
                     $closePlayerButton.removeClass('hidden');
-                } else if (provider === 'vidlink2') {
-                    // Render basic HLS video player using hls.js
-                    playerHtml = `
-                        <video id="hlsVideoPlayer" controls style="width: 100%; height: auto;" class="video-element">
-
+        
+                    // Lazy load video source
+                    const videoElement = document.getElementById('mp4VideoPlayer');
+                    const sourceElement = videoElement.querySelector('source');
+                    if ('IntersectionObserver' in window) {
+                        const observer = new IntersectionObserver((entries, observer) => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    sourceElement.src = sourceElement.getAttribute('data-src');
+                                    videoElement.load();
+                                    observer.unobserve(videoElement);
+                                }
+                            });
+                        });
+                        observer.observe(videoElement);
+                    } else {
+                        sourceElement.src = sourceElement.getAttribute('data-src');
+                        videoElement.load();
+                    }
+        
+                    // Attempt to enter fullscreen and lock orientation when video is ready
+                    videoElement.addEventListener('loadedmetadata', () => {
+                        attemptFullscreenAndLockOrientation(videoElement);
+                    });
+                } else if (provider === 'filmxy') {
+                    // HLS setup for filmxy provider
+                    const playerHtml = `
+                        <video id="hlsVideoPlayer" loading="lazy" crossorigin="anonymous" preload="metadata" controls style="width: 100%; height: auto;" class="video-element">
                         </video>
                     `;
                     $videoPlayer.html(playerHtml).removeClass('hidden');
                     $movieInfo.children().not($videoPlayer).addClass('hidden');
                     $closePlayerButton.removeClass('hidden');
         
-                    // Initialize hls.js
-                    if (Hls.isSupported()) {
-                        const video = document.getElementById('hlsVideoPlayer');
-                        const hls = new Hls();
-                        hls.loadSource(endpoint);
-                        hls.attachMedia(video);
-                        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                            video.play();
+                    const videoElement = document.getElementById('hlsVideoPlayer');
+                    if ('IntersectionObserver' in window && Hls.isSupported()) {
+                        const observer = new IntersectionObserver((entries, observer) => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    const hls = new Hls({ lowLatencyMode: true, backBufferLength: 90 });
+                                    hls.loadSource(endpoint);
+                                    hls.attachMedia(videoElement);
+                                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                        videoElement.play();
+                                        attemptFullscreenAndLockOrientation(videoElement);
+                                    });
+                                    observer.unobserve(videoElement);
+                                }
+                            });
                         });
-                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        // Native HLS support (e.g., Safari)
-                        const video = document.getElementById('hlsVideoPlayer');
-                        video.src = endpoint;
-                        video.addEventListener('loadedmetadata', function () {
-                            video.play();
+                        observer.observe(videoElement);
+                    } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                        videoElement.src = endpoint;
+                        videoElement.addEventListener('loadedmetadata', () => {
+                            videoElement.play();
+                            attemptFullscreenAndLockOrientation(videoElement);
                         });
-                    } 
+                    } else {
+                        alert('Your browser does not support HLS playback.');
+                    }
                 } else {
+                    // Generic iframe display for other providers
                     const sandboxAttribute = provider === 'vidlink' ? 'sandbox="allow-same-origin allow-scripts allow-forms"' : '';
                     const referrerPolicy = provider === 'vidbinge' ? 'referrerpolicy="origin-when-cross-origin"' : '';
                     const iframeHtml = `
-                <iframe 
-                    src="${endpoint}" 
-                    class="video-iframe" 
-                    allowfullscreen 
-                    ${sandboxAttribute} 
-                    ${referrerPolicy}>
-                </iframe>
-            `;
-
+                        <iframe 
+                            src="${endpoint}" 
+                            id="videoIframe"
+                            class="video-iframe" 
+                            allowfullscreen 
+                            preload="auto"
+                            loading="lazy"
+                            crossorigin="anonymous"
+                            ${sandboxAttribute} 
+                            ${referrerPolicy}>
+                        </iframe>
+                    `;
                     $videoPlayer.html(iframeHtml).removeClass('hidden');
                     $movieInfo.children().not($videoPlayer).addClass('hidden');
                     $closePlayerButton.removeClass('hidden');
-
+        
                     $('iframe').one('load', function () {
                         const iframeWindow = this.contentWindow;
-
                         if (iframeWindow) {
                             try {
-                                // Disable all click events inside the iframe on A and BUTTON tags
-                                iframeWindow.document.addEventListener('click', function (event) {
+                                iframeWindow.document.addEventListener('click', (event) => {
                                     const target = event.target.tagName;
-                                    if (target === 'A' || target === 'BUTTON') {
-                                        event.preventDefault();
-                                        console.log('Blocked click on:', target);
-                                    }
+                                    if (target === 'A' || target === 'BUTTON') event.preventDefault();
                                 });
-
-                                iframeWindow.open = function () {
-                                    console.log('Blocked pop-up attempt');
-                                    return null;
-                                };
-
-                                iframeWindow.eval(`(function() {
-                            const originalOpen = window.open;
-                            window.open = function(...args) {
-                                console.log('Blocked window.open call with args:', args);
-                                return null;
-                            };
-                        })();`);
-
-                                // Prevent page unload, submit, etc., inside the iframe
+                                iframeWindow.open = () => null;
+                                iframeWindow.eval(`(function() { window.open = () => null; })();`);
                                 ['beforeunload', 'unload', 'submit'].forEach(eventType => {
                                     iframeWindow.document.addEventListener(eventType, event => event.preventDefault());
                                 });
@@ -524,11 +711,16 @@ async function displaySelectedMedia(media, mediaType) {
                             }
                         }
                     });
+        
+                    // Attempt to enter fullscreen and lock orientation
+                    attemptFullscreenAndLockOrientation(document.getElementById('videoIframe'));
                 }
             } catch (error) {
                 console.error('Error updating video:', error);
             }
         }
+        
+        
 
 
         async function closeVideoPlayer() {

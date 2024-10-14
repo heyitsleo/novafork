@@ -242,6 +242,37 @@ button:active {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Toggle Switch Style */
+.toggle-checkbox {
+    appearance: none;
+    width: 40px;
+    height: 20px;
+    background-color: #ccc;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.3s;
+}
+.toggle-checkbox:checked {
+    background-color: #6a0dad;
+}
+.toggle-checkbox:before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background-color: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s;
+}
+.toggle-checkbox:checked:before {
+    transform: translateX(20px);
+}
+
+
 /* Search Suggestions */
 #searchSuggestions {
     position: absolute;
